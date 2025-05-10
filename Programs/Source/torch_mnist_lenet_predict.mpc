@@ -3,12 +3,18 @@
 program.options_from_args()
 
 import torchvision
+import numpy as np
+from torch.utils.data import Subset, Dataset
 
 data = []
 for train in True, False:
-    ds = torchvision.datasets.MNIST(root='/tmp', train=train, download=True)
+    ds = torchvision.datasets.MNIST(root="/tmp", train=train, download=True)
+    indices = np.arange(32)
+    partial_ds: Subset[Dataset] = Subset(ds, indices)
+    partial_samples = ds.data[indices]
+    partial_labels = ds.targets[indices]
     # normalize to [0,1] before input
-    samples = sfix.input_tensor_via(0, ds.data / 255., binary=True)
+    samples = sfix.input_tensor_via(0, ds.data / 255.0, binary=True)
     labels = sint.input_tensor_via(0, ds.targets, binary=True, one_hot=True)
     data += [(labels, samples)]
 
@@ -28,18 +34,17 @@ layers = [
     nn.ReLU(),
     nn.Linear(800, 500),
     nn.ReLU(),
-    nn.Linear(500, 10)
+    nn.Linear(500, 10),
 ]
 
-if 'bn' in program.args:
+if "bn" in program.args:
     layers.insert(3, nn.BatchNorm2d(20))
 
 net = nn.Sequential(*layers)
 
 # train for a bit
-transform = torchvision.transforms.Compose(
-    [torchvision.transforms.ToTensor()])
-ds = torchvision.datasets.MNIST(root='/tmp', transform=transform, train=True)
+transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor()])
+ds = torchvision.datasets.MNIST(root="/tmp", transform=transform, train=True)
 optimizer = torch.optim.Adam(net.parameters(), amsgrad=True)
 criterion = nn.CrossEntropyLoss()
 
@@ -52,8 +57,7 @@ for i, data in enumerate(torch.utils.data.DataLoader(ds, batch_size=128)):
     optimizer.step()
 
 with torch.no_grad():
-    ds = torchvision.datasets.MNIST(root='/tmp', transform=transform,
-                                    train=False)
+    ds = torchvision.datasets.MNIST(root="/tmp", transform=transform, train=False)
     total = correct_classified = 0
     for data in torch.utils.data.DataLoader(ds, batch_size=128):
         inputs, labels = data
@@ -61,8 +65,8 @@ with torch.no_grad():
         _, predicted = torch.max(outputs.data, 1)
         total += labels.size(0)
         correct_classified += (predicted == labels).sum().item()
-    test_acc = (100 * correct_classified / total)
-    print('Cleartext accuracy of the network: %.2f %%' % test_acc)
+    test_acc = 100 * correct_classified / total
+    print("Cleartext accuracy of the network: %.2f %%" % test_acc)
 
 from Compiler import ml
 
@@ -75,5 +79,7 @@ optimizer = ml.Optimizer(layers)
 # output to be used in Scripts/torch_mnist_lenet_import.py
 optimizer.reveal_model_to_binary()
 
-n_correct, loss = optimizer.reveal_correctness(test_samples, test_labels, 128, running=True)
-print_ln('Secure accuracy: %s/%s', n_correct, len(test_samples))
+n_correct, loss = optimizer.reveal_correctness(
+    test_samples, test_labels, 128, running=True
+)
+print_ln("Secure accuracy: %s/%s", n_correct, len(test_samples))

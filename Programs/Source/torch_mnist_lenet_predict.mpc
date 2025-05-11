@@ -14,8 +14,8 @@ for train in True, False:
     partial_samples = ds.data[indices]
     partial_labels = ds.targets[indices]
     # normalize to [0,1] before input
-    samples = sfix.input_tensor_via(0, ds.data / 255.0, binary=True)
-    labels = sint.input_tensor_via(0, ds.targets, binary=True, one_hot=True)
+    samples = sfix.input_tensor_via(0, partial_samples / 255.0, binary=True)
+    labels = sint.input_tensor_via(0, partial_labels, binary=True, one_hot=True)
     data += [(labels, samples)]
 
 (training_labels, training_samples), (test_labels, test_samples) = data

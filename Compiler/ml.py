@@ -1288,7 +1288,7 @@ class Relu(ElementWiseLayer):
         return self.comparisons.get_vector(base, size)
 
 
-class Sigmoid(ElementWiseLayer):
+class Sigmoid3Piece(ElementWiseLayer):
     """Fixed-point Sigmoid layer based on ABY 3-part spline approximation.
 
     :param shape: input/output shape (tuple/list of int)
@@ -1297,7 +1297,7 @@ class Sigmoid(ElementWiseLayer):
     prime_type = sint
 
     def __init__(self, shape, inputs=None):
-        super(Sigmoid, self).__init__(shape)
+        super(Sigmoid3Piece, self).__init__(shape)
         self.comparisons = MultiArray(shape, sint)
 
     def f_part(self, base, size):
@@ -1307,6 +1307,42 @@ class Sigmoid(ElementWiseLayer):
         self.comparisons.assign_vector(c1, base)
         self.comparisons.assign_vector(c2, base)
         return c1.if_else(1, c2.if_else(0, x + 0.5))
+
+    def f_prime_part(self, base, size):
+        return self.comparisons.get_vector(base, size)
+
+
+class Sigmoid5Piece(ElementWiseLayer):
+    """Fixed-point Sigmoid layer based on ABY 3-part spline approximation.
+
+    :param shape: input/output shape (tuple/list of int)
+    """
+
+    prime_type = sint
+
+    def __init__(self, shape, inputs=None):
+        super(Sigmoid5Piece, self).__init__(shape)
+        self.comparisons = MultiArray(shape, sint)
+
+    def f_part(self, base, size):
+        x = self.X.get_vector(base, size)
+        c1 = x < -5
+        c2 = x <= -2.5
+        c3 = x <= 2.5
+        c4 = x < 5
+        self.comparisons.assign_vector(c1, base)
+        self.comparisons.assign_vector(c2, base)
+        self.comparisons.assign_vector(c3, base)
+        self.comparisons.assign_vector(c4, base)
+        return c1.if_else(
+            10**-4,
+            c2.if_else(
+                0.02776 * x + 0.145,
+                c3.if_else(
+                    0.17 * x + 0.5, c4.if_else(0.02776 * x + 0.85498, 1 - 10**-4)
+                ),
+            ),
+        )
 
     def f_prime_part(self, base, size):
         return self.comparisons.get_vector(base, size)
@@ -3800,7 +3836,7 @@ class keras:
                     elif name == "relu":
                         layers.append(Relu(layers[-1].Y.sizes))
                     elif name == "sigmoid":
-                        layers.append(Sigmoid(layers[-1].Y.sizes))
+                        layers.append(Sigmoid3Piece(layers[-1].Y.sizes))
                     elif name == "batchnorm":
                         input_shape = layers[-1].Y.sizes
                         layers.append(BatchNorm(layers[-1].Y.sizes))
@@ -3897,6 +3933,7 @@ def layers_from_torch(
     regression=False,
     layer_args={},
     program=None,
+    schedulerOpts={},
 ):
     """Convert a PyTorch Module object to MP-SPDZ layers.
 
@@ -3910,12 +3947,30 @@ def layers_from_torch(
     layers = []
     named_layers = {}
 
+    def getLayerTypesToReplace(schedulerOpts):
+        if not schedulerOpts["layerReplacement"]:
+            return []
+        return [replacement.layerToReplace for replacement in layerReplacement]
+
+    def getSigmoidReplacementLayer(schedulerOpts, currentLayerId):
+        replacementLayer = None
+        for replacementSet in schedulerOpts.layerReplacement:
+            if (
+                replacementSet.layerToReplace == "Sigmoid"
+                and currentLayerId in replacementSet.layerIndicies
+            ):
+                if replacementSet.replaceWith == "Sigmoid3Piece":
+                    replacementLayer = Sigmoid3Piece
+                elif replacementSet.replaceWith == "Sigmoid5Piece":
+                    replacementLayer = Sigmoid5Piece
+        return replacementLayer
+
     def mul(x):
         return reduce(operator.mul, x)
 
     import torch
 
-    def process(item, inputs, input_shape, args, kwargs={}):
+    def process(item, inputs, input_shape, layerId, schedulerOpts, args, kwargs={}):
         if item == torch.cat:
             if len(inputs) > 1:
                 layers.append(Concat(inputs, dimension=len(inputs[0].shape) - 1))
@@ -4033,7 +4088,9 @@ def layers_from_torch(
         elif name == "ReLU" or item == torch.nn.functional.relu:
             layers.append(Relu(input_shape))
         elif name == "Sigmoid" or item == torch.nn.functional.sigmoid:
-            layers.append(Sigmoid(input_shape))
+            replacementLayer = getSigmoidReplacementLayer(schedulerOpts, layerId)
+            if replacementLayer is not None:
+                layers.append(replacementLayer(input_shape))
         elif name == "Flatten":
             return
         elif name == "BatchNorm2d":
@@ -4086,7 +4143,7 @@ def layers_from_torch(
                     input_shape = inputs[0]._Y.shape
             else:
                 input_shape = None
-        process(target, inputs, input_shape, layer.args, layer.kwargs)
+        process(target, inputs, input_shape, i, schedulerOpts, layer.args, layer.kwargs)
         if layers:
             named_layers[layer] = layers[-1]
 

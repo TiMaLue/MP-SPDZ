@@ -3954,14 +3954,14 @@ def layers_from_torch(
 
     def getSigmoidReplacementLayer(schedulerOpts, currentLayerId):
         replacementLayer = None
-        for replacementSet in schedulerOpts.layerReplacement:
+        for replacementSet in schedulerOpts["layerReplacement"]:
             if (
-                replacementSet.layerToReplace == "Sigmoid"
-                and currentLayerId in replacementSet.layerIndicies
+                replacementSet["layerToReplace"] == "Sigmoid"
+                and currentLayerId in replacementSet["layerIndices"]
             ):
-                if replacementSet.replaceWith == "Sigmoid3Piece":
+                if replacementSet["replaceWith"] == "Sigmoid3Piece":
                     replacementLayer = Sigmoid3Piece
-                elif replacementSet.replaceWith == "Sigmoid5Piece":
+                elif replacementSet["replaceWith"] == "Sigmoid5Piece":
                     replacementLayer = Sigmoid5Piece
         return replacementLayer
 

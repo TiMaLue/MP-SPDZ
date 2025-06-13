@@ -3947,23 +3947,26 @@ def layers_from_torch(
     layers = []
     named_layers = {}
 
-    def getLayerTypesToReplace(schedulerOpts):
-        if not schedulerOpts["layerReplacement"]:
+    def get_layer_types_to_replace(scheduler_opts):
+        if not scheduler_opts["layer_replacement"]:
             return []
-        return [replacement.layerToReplace for replacement in layerReplacement]
+        return [
+            replacement.layer_to_replace
+            for replacement in scheduler_opts["layer_replacement"]
+        ]
 
-    def getSigmoidReplacementLayer(schedulerOpts, currentLayerId):
-        replacementLayer = None
-        for replacementSet in schedulerOpts["layerReplacement"]:
+    def get_sigmoid_replacement_layer(scheduler_opts, current_layer_id):
+        replacement_layer = None
+        for replacement_set in scheduler_opts["layer_replacement"]:
             if (
-                replacementSet["layerToReplace"] == "Sigmoid"
-                and currentLayerId in replacementSet["layerIndices"]
+                replacement_set["layer_to_replace"] == "Sigmoid"
+                and current_layer_id in replacement_set["layer_indices"]
             ):
-                if replacementSet["replaceWith"] == "Sigmoid3Piece":
-                    replacementLayer = Sigmoid3Piece
-                elif replacementSet["replaceWith"] == "Sigmoid5Piece":
-                    replacementLayer = Sigmoid5Piece
-        return replacementLayer
+                if replacement_set["replace_with"] == "Sigmoid3Piece":
+                    replacement_layer = Sigmoid3Piece
+                elif replacement_set["replace_with"] == "Sigmoid5Piece":
+                    replacement_layer = Sigmoid5Piece
+        return replacement_layer
 
     def mul(x):
         return reduce(operator.mul, x)
@@ -4088,7 +4091,7 @@ def layers_from_torch(
         elif name == "ReLU" or item == torch.nn.functional.relu:
             layers.append(Relu(input_shape))
         elif name == "Sigmoid" or item == torch.nn.functional.sigmoid:
-            replacementLayer = getSigmoidReplacementLayer(schedulerOpts, layerId)
+            replacementLayer = get_sigmoid_replacement_layer(schedulerOpts, layerId)
             if replacementLayer is not None:
                 layers.append(replacementLayer(input_shape))
         elif name == "Flatten":

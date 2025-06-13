@@ -3933,7 +3933,7 @@ def layers_from_torch(
     regression=False,
     layer_args={},
     program=None,
-    schedulerOpts={},
+    scheduler_opts={},
 ):
     """Convert a PyTorch Module object to MP-SPDZ layers.
 
@@ -3973,7 +3973,7 @@ def layers_from_torch(
 
     import torch
 
-    def process(item, inputs, input_shape, layerId, schedulerOpts, args, kwargs={}):
+    def process(item, inputs, input_shape, layerId, scheduler_opts, args, kwargs={}):
         if item == torch.cat:
             if len(inputs) > 1:
                 layers.append(Concat(inputs, dimension=len(inputs[0].shape) - 1))
@@ -4091,9 +4091,9 @@ def layers_from_torch(
         elif name == "ReLU" or item == torch.nn.functional.relu:
             layers.append(Relu(input_shape))
         elif name == "Sigmoid" or item == torch.nn.functional.sigmoid:
-            replacementLayer = get_sigmoid_replacement_layer(schedulerOpts, layerId)
-            if replacementLayer is not None:
-                layers.append(replacementLayer(input_shape))
+            replacement_layer = get_sigmoid_replacement_layer(scheduler_opts, layerId)
+            if replacement_layer is not None:
+                layers.append(replacement_layer(input_shape))
         elif name == "Flatten":
             return
         elif name == "BatchNorm2d":
@@ -4146,7 +4146,9 @@ def layers_from_torch(
                     input_shape = inputs[0]._Y.shape
             else:
                 input_shape = None
-        process(target, inputs, input_shape, i, schedulerOpts, layer.args, layer.kwargs)
+        process(
+            target, inputs, input_shape, i, scheduler_opts, layer.args, layer.kwargs
+        )
         if layers:
             named_layers[layer] = layers[-1]
 

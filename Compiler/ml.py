@@ -3973,7 +3973,7 @@ def layers_from_torch(
 
     import torch
 
-    def process(item, inputs, input_shape, layerId, scheduler_opts, args, kwargs={}):
+    def process(item, inputs, input_shape, layer_id, scheduler_opts, args, kwargs={}):
         if item == torch.cat:
             if len(inputs) > 1:
                 layers.append(Concat(inputs, dimension=len(inputs[0].shape) - 1))
@@ -4091,7 +4091,7 @@ def layers_from_torch(
         elif name == "ReLU" or item == torch.nn.functional.relu:
             layers.append(Relu(input_shape))
         elif name == "Sigmoid" or item == torch.nn.functional.sigmoid:
-            replacement_layer = get_sigmoid_replacement_layer(scheduler_opts, layerId)
+            replacement_layer = get_sigmoid_replacement_layer(scheduler_opts, layer_id)
             if replacement_layer is not None:
                 layers.append(replacement_layer(input_shape))
         elif name == "Flatten":

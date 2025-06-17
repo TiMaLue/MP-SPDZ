@@ -61,6 +61,8 @@ an example of how to run MP-SPDZ on TensorFlow graphs.
 import math
 import re
 
+from torch.nn import ReLU
+
 from Compiler import mpc_math, util
 from Compiler.types import *
 from Compiler.types import _unreduced_squant
@@ -3962,10 +3964,16 @@ def layers_from_torch(
                 replacement_set["layer_to_replace"] == "Sigmoid"
                 and current_layer_id in replacement_set["layer_indices"]
             ):
-                if replacement_set["replace_with"] == "Sigmoid3Piece":
-                    replacement_layer = Sigmoid3Piece
+                if replacement_set["replace_with"] == "ReLU":
+                    replacement_layer = Relu
                 elif replacement_set["replace_with"] == "Sigmoid5Piece":
                     replacement_layer = Sigmoid5Piece
+                else:
+                    if replacement_set["replace_with"] != "Sigmoid3Piece":
+                        print(
+                            f"WARNING: replacement layer type {replacement_set['replace_with']} unknown, defaulting to Sigmoid3Piece!"
+                        )
+                    replacement_layer = Sigmoid3Piece
         return replacement_layer
 
     def mul(x):
